@@ -146,6 +146,55 @@ a:hover {
 	font-size: 14px;
 	color: #666;
 }
+
+#profileBox {
+	position: relative;
+	margin-left: auto;
+	margin-right: auto;
+	text-align: center;
+	width: 540px ;
+	height: 600px ;
+}
+
+#profileImage {
+	width:270px;
+	height:300px;
+	border-radius:3px;
+	position: relative;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+#postDiv {
+	position: relative;
+	margin-left: auto;
+	margin-right: auto;
+	width: 320px;
+}
+
+#passwordTable {
+	position: relative;
+	margin-left: auto;
+	margin-right: auto;
+	width: 320px;
+	text-align: center;
+}
+
+#message {
+	position: absolute;
+	bottom: 10px;
+	right: 10px;
+	width: 200px;
+	background-color: #fff;
+	border-radius: 3px;
+	box-shadow: 0px 0px 6px rgba(0,0,0,0.7);
+	text-align: center;
+	height: 50px;
+	line-height: 25px;
+	font-size: 14px;
+	padding:5px;
+}
+
 /*********************************************/
 
 button, /*input[type=submit]*/

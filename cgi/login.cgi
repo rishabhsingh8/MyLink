@@ -6,12 +6,16 @@ import cgitb; cgitb.enable()  # for troubleshooting
 import sqlite3
 import session
 import base64
+import Cookie
+import smtplib
 
 #Get Databasedir
 MYLOGIN="rahluwal"
 DATABASE="/homes/"+MYLOGIN+"/MyLink/picture_share.db"
 IMAGEPATH="/homes/"+MYLOGIN+"/MyLink/images"
 STYLESHEET="/homes/"+MYLOGIN+"/MyLink/stylesheet.css"
+ALL_ID_STRING="$$##ALL##$$"
+
 
 ##############################################################
 # Define function to generate login HTML form.
@@ -37,7 +41,7 @@ def login_form():
 </TABLE>
 <INPUT TYPE=hidden NAME="action" VALUE="login">
 <br />
-<INPUT class="btn btn--gray" TYPE=submit VALUE="Login">
+<INPUT class="btn btn--gray-dark" TYPE=submit VALUE="Login">
 </FORM>
 
 
@@ -52,7 +56,7 @@ def login_form():
 </TABLE>
 <INPUT TYPE=hidden NAME="action" VALUE="signUp">
 <br />
-<INPUT class="btn btn--gray" TYPE=submit VALUE="Sign Up">
+<INPUT class="btn btn--gray-dark" TYPE=submit VALUE="Sign Up">
 </FORM>
 
 </div>
@@ -104,6 +108,8 @@ def display_admin_options(user, session):
         <li> <a href="login.cgi?action=createCircleOfFriends&user={user}&session={session}">Create Circle Of Friends</a>
         <li> <a href="login.cgi?action=seeCircleOfFriends&user={user}&session={session}">See Circle Of Friends</a>
         <li> <a href="login.cgi?action=createPost&user={user}&session={session}">Create A Post</a>
+        <li> <a href="login.cgi?action=validateAccount&user={user}&session={session}">Validate Account</a>
+        
         
         <li> <a href="login.cgi?action=logout&user={user}&session={session}">Logout</a>
         </ul>
@@ -145,6 +151,11 @@ def show_image(form):
     #username=form["username"].value
     user = form["user"].value
     path = IMAGEPATH + "/"+user+"/profile.jpg";
+    
+    if not os.path.exists(path):
+        display_admin_options(user, form["session"].value)
+        return;
+        
     # Read image
     with open(path, 'rb') as content_file:
        content = content_file.read()
@@ -202,9 +213,14 @@ def upload_pic_data(form):
 
     # Check if the file was uploaded
     if fileInfo.filename:
+        
+        if not os.path.exists(IMAGEPATH+'/'+user):
+            os.makedirs(IMAGEPATH+'/'+user)
+            
         # Remove directory path to extract name only
         fileName = os.path.basename(fileInfo.filename)
-        open(IMAGEPATH+'/'+user+'/profile.jpg', 'wb').write(fileInfo.file.read())
+        open(IMAGEPATH+'/'+user+'/profile.jpg', 'wb+').write(fileInfo.file.read())
+            
         image_url="login.cgi?action=show_image&user={user}&session={session}".format(user=user,session=s)
         print_html_content_type()
 	print ('<H2>The picture ' + fileName + ' was uploaded successfully</H2>')
@@ -234,14 +250,14 @@ def createNewUser(form):
     if p:
         #means we have an existing user
         login_form();
-        print("<H3><font color=\"red\">Someone exists with that email address.</font></H3>")
+        print("<H3 id=\"message\"><font color=\"red\">Someone exists with that email address.</font></H3>")
     else:
         #We can create user
         user=(username, password)
         c.execute('INSERT INTO users VALUES (?,?)', user)
         conn.commit()
         login_form();
-        print("<H3><font color=\"green\">Your account has been created!</font></H3>")
+        print("<H3 id=\"message\"><font color=\"green\">Your account has been created!</font></H3>")
         
 def changePassword(form):
     #Check session is correct
@@ -259,18 +275,26 @@ def changePassword(form):
 
         <BODY BGCOLOR = white>
 
-        <center><H2>MyLink Change Password</H2></center>
+        <center><H2 id="homepageHeader">Change Password</H2></center>
 
-        <H3>Change Password:</H3>
 
-        <TABLE BORDER = 0>
-        <FORM METHOD=post ACTION="login.cgi">
-        <TR><TH>Old Password:</TH><TD><INPUT TYPE=password NAME="oldPassword"></TD><TR>
+        <TABLE BORDER = 0 id="passwordTable">
+        <tr>
+        <td>
+        <FORM METHOD=post NAME="passwordForm" ACTION="login.cgi">
+        <TR><TH>Old Password:</TH><TD><INPUT TYPE=password NAME="oldPassword" ></TD><TR>
         <TR><TH>New Password:</TH><TD><INPUT TYPE=password NAME="newPassword"></TD></TR>
-        </TABLE>
         <INPUT TYPE=hidden NAME="action" VALUE="actuallyChangePassword">
         <INPUT TYPE=hidden NAME="username" VALUE="{username}">
-    <INPUT TYPE=submit VALUE="Enter">
+        </td>
+        </tr>
+        <tr>
+        <td>
+    <a href="#" class="btn btn--gray-dark" onclick="document.forms['passwordForm'].submit(); return false;" VALUE="Submit">Submit</a>
+    </td>
+    </tr>
+    </TABLE>
+    
     </FORM>
     </BODY>
     </HTML>
@@ -296,10 +320,10 @@ def actuallyChangePassword(form):
         c.execute("UPDATE users SET password=? WHERE email=?;",j)
         conn.commit()
         login_form();
-        print("<H3><font color=\"green\">Password Changed!</font></H3>")
+        print("<H3 id=\"message\"><font color=\"green\">Password Changed!</font></H3>")
     else:
         login_form();
-        print("<H3><font color=\"red\">Incorrect Details!</font></H3>")
+        print("<H3 id=\"message\"><font color=\"red\">Incorrect Details!</font></H3>")
         
 def showAddFriendPage(form):
     #Check session is correct
@@ -382,7 +406,7 @@ def actuallyAddFriend(form):
     a = c.fetchone()
     if a:
         display_admin_options(user, form["session"].value)
-        message = "<H3><font color=\"red\">{you} and {friend} are already friends!</font></H3>"
+        message = "<H3 id=\"message\"><font color=\"red\">{you} and {friend} are already friends!</font></H3>"
         print(message.format(you=user, friend=friend));
         return
 
@@ -396,7 +420,7 @@ def actuallyAddFriend(form):
     conn.commit();
     session=create_new_session(user)
     display_admin_options(user, session)
-    print("<H3><font color=\"green\">Friend Request Sent!</font></H3>")
+    print("<H3 id=\"message\"><font color=\"green\">Friend Request Sent!</font></H3>")
 
 
 def printFriendRequestLink(ssn, user, friend):
@@ -445,7 +469,7 @@ def declineFriendRequest(form):
     c.execute('DELETE from friendRequests where name=? AND friend=?',k)
     conn.commit();
     display_admin_options(user, form["session"].value)
-    message = "<H3><font color=\"red\">Friend request from {friend} declined!</font></H3>"
+    message = "<H3 id=\"message\"><font color=\"red\">Friend request from {friend} declined!</font></H3>"
     print(message.format(friend=friend));
 
 def confirmFriendRequest(form):
@@ -461,7 +485,7 @@ def confirmFriendRequest(form):
     a = c.fetchone()
     if a :
         display_admin_options(user, form["session"].value)
-        message = "<H3><font color=\"red\">{you} and {friend} are already friends!</font></H3>"
+        message = "<H3 id=\"message\"><font color=\"red\">{you} and {friend} are already friends!</font></H3>"
         print(message.format(you=user, friend=friend));
         k = (user, friend, )
         c.execute('DELETE from friendRequests where name=? AND friend=?',k)
@@ -474,15 +498,15 @@ def confirmFriendRequest(form):
     c.execute('DELETE from friendRequests where name=? AND friend=?',k)
     conn.commit();
     display_admin_options(user, form["session"].value)
-    message = "<H3><font color=\"green\">{you} and {friend} are now friends!</font></H3>"
+    message = "<H3 id=\"message\"><font color=\"green\">{you} and {friend} are now friends!</font></H3>"
     print(message.format(you=user, friend=friend));
 
 def printFriend(ssn, user, friend):
-    # html = """
-#     <li><a href="login.cgi?action=seeFriend&user={user}&friend={name}&session={session}">{name}</a></li>
-#     """
     html = """
-    <li>{name}</li>"""
+    <li><a href="login.cgi?action=seeFriend&user={user}&friend={name}&session={session}">{name}</a></li>
+    """
+    # html = """
+#     <li>{name}</li>"""
     print(html.format(user=user, name=friend,session=ssn))
 
 def showFriendList(form):
@@ -534,9 +558,11 @@ def printFriendPage(picture, user, friend, ssn):
     <TITLE>Info Form</TITLE>
     </HEAD>
     <BODY>
-    <img src="data:image/png;base64,{picture}" alt="Profile Picture" style="width:304px;height:228px; display:{hidden};">
+    <div id="profileBox">
+    <img id="profileImage" src="data:image/png;base64,{picture}" alt="Profile Picture" style="display:{hidden};">
     <H3>{name}</H3>
-    <li><a href="login.cgi?action=removeFriend&user={user}&friend={name}&session={session}">Unfriend</a></li>
+    <a class="btn btn--gray-dark" href="login.cgi?action=removeFriend&user={user}&friend={name}&session={session}">Unfriend</a>
+    </div>
     </BODY>
     </HTML> 
     """;
@@ -559,7 +585,7 @@ def showFriend(form):
 
     if a==None:
         display_admin_options(user, form["session"].value)
-        message = "<H3><font color=\"red\">{you} and {friend} are not friends!</font></H3>"
+        message = "<H3 id=\"message\"><font color=\"red\">{you} and {friend} are not friends!</font></H3>"
         print(message.format(you=user, friend=friend));
         return
 
@@ -587,7 +613,7 @@ def removeFriend(form):
     
     display_admin_options(user, form["session"].value)
     
-    message = "<H3><font color=\"green\">{you} and {friend} are no longer friends!</font></H3>"
+    message = "<H3 id=\"message\"><font color=\"green\">{you} and {friend} are no longer friends!</font></H3>"
     print(message.format(friend=friend, you = user));
     
 def createFriendCheckbox(friendName):
@@ -658,8 +684,31 @@ def actuallyCreateCircleOfFriends(form):
 
     #print_html_content_type();
     display_admin_options(user, s)
-    message = "<H3><font color=\"green\">{circle} created!</font></H3>"
+    message = "<H3 id=\"message\"><font color=\"green\">{circle} created!</font></H3>"
     print(message.format(circle=circleName));
+    
+    
+def reassignCircle(form):
+    conn = sqlite3.connect(DATABASE)
+    c = conn.cursor()
+    
+    friends = form.getlist("friendName")
+    circle=form["circle"].value
+    user = form["user"].value
+    t=(user, )
+    
+    
+    t=(user, circle, )
+    c.execute("DELETE from circles where owner=? AND name=?",t)
+    
+    for friend in friends:
+        if friend:
+            k=(circle, friend, user, )
+            c.execute("INSERT into circles VALUES (?,?,?)",k)
+    
+    conn.commit()
+    display_admin_options(user, form["session"].value)
+    print(circle);
     
 def showCircleOfFriends(form):
     #Check session is correct
@@ -749,6 +798,7 @@ def showEditCirclePage(form):
         <FORM ACTION="login.cgi" id="postForm" METHOD="POST" enctype="multipart/form-data">
             <input type="hidden" name="user" value="{user}">
             <input type="hidden" name="session" value="{session}">
+            <input type="hidden" name="circle" value="{circle}">
             <input type="hidden" name="action" value="reassignCircle">
             <ul>
             {friends}
@@ -758,7 +808,7 @@ def showEditCirclePage(form):
         </HTML>
     """
     print_html_content_type()
-    print(mainHtml.format(friends=html,user=user,session=s));
+    print(mainHtml.format(friends=html,user=user,session=s,circle=circle));
         
 def getCircleNames(user):
     conn = sqlite3.connect(DATABASE)
@@ -778,7 +828,7 @@ def getCircleNames(user):
         if index != -1:
             continue;
             
-        k = """<input type="checkbox" value="%s" name="circleName">%s</option>""" % (something[0], something[0])
+        k = """<input type="checkbox" value="%s" name="circleName">%s</option><br />""" % (something[0], something[0])
         
         done.append(something[0]);
         html += k
@@ -797,7 +847,8 @@ def showCreatePost(form):
         <link rel="stylesheet" type="text/css" href="stylesheet.css">
         <TITLE>Info Form</TITLE>
         </HEAD>
-        <H3>Create A Post:</H3>
+        <H2 id="homepageHeader">Create A Post</H2>
+        <div id="postDiv">
         <FORM ACTION="login.cgi" id="postForm" METHOD="POST" enctype="multipart/form-data">
             <input type="hidden" name="user" value="{user}">
             <input type="hidden" name="session" value="{session}">
@@ -814,6 +865,7 @@ def showCreatePost(form):
             <br />
             <input type="submit" value="Submit">
             </form>
+        </div>
         </HTML>
     """
     user = form["user"].value
@@ -845,9 +897,10 @@ def uploadPost(form):
     char_set = string.ascii_uppercase + string.digits
     ID = ''.join(random.sample(char_set,n))
         
-    
+    checkedOne = "no"
     for circleName in circleNames:
         if circleName:
+            checkedOne = "yes"
             t = (circleName, )
             c.execute("SELECT * FROM circleOfCircles WHERE circleName=?",t)
             k = c.fetchone();
@@ -856,8 +909,9 @@ def uploadPost(form):
             else:
                 t = (ID, circleName)
                 c.execute("INSERT INTO circleOfCircles VALUES (?,?)", t)
+                
     
-
+    
     if fileInfo.filename:
         #IMAGE WAS POSTED
         # Remove directory path to extract name only
@@ -877,14 +931,15 @@ def uploadPost(form):
 
 
 
-
+    if checkedOne == "no":
+        ID = ALL_ID_STRING
     post=(user, ID, path, postDetails);
     c.execute('INSERT INTO posts VALUES (?,?,?,?)', post)
     conn.commit()
 
     #print_html_content_type()
     display_admin_options(user, s)
-    message = "<H3><font color=\"green\">Your post was posted!</font></H3>"
+    message = "<H3 id=\"message\"><font color=\"green\">Your post was posted!</font></H3>"
     print(message);
     
 def belongsToCircle(user ,circleName):
@@ -927,6 +982,9 @@ def showNewsFeed(user, s):
         circleID = row[1]
         t= (circleID, )
         if row[0] == user:
+            posts.append(row);
+            continue;
+        if row[1] == ALL_ID_STRING:
             posts.append(row);
             continue;
         c.execute('SELECT * from circleOfCircles WHERE ID=?', t)
@@ -990,6 +1048,31 @@ def showNewsFeed(user, s):
     # print_html_content_type()
     print(html);
     
+
+def validateAccount(form):
+    sender = 'myLink@myLink.com'
+    receivers = [form["user"].value]
+
+    message = """
+    Please click the following link to validate your account.
+    {link}
+    Thank You,
+    The MyLink Team.
+    """
+    
+    link = """ http://data.cs.purdue.edu:1224/MyLink/login.cgi?user={user}&action=actuallyValidateAccount 
+    """
+    link = link.format(user=receivers[0])
+    message = message.format(link=link)
+    try:
+        smtpObj = smtplib.SMTP("localhost")
+        smtpObj.sendmail(sender, receivers, message)
+        display_admin_options(receivers[0],form["session"].value);
+        print("<H3 id=\"message\"><font color=\"green\">Sent Verification</font></H3>")
+    except smtplib.SMTPException:
+        display_admin_options(receivers[0],form["session"].value); 
+        print("<H3 id=\"message\"><font color=\"red\">Unable To Send Verification</font></H3>")
+    
     
 ##############################################################
 # Define main function.
@@ -999,16 +1082,30 @@ def main():
         action=form["action"].value
         #print("action=",action)
         if action == "login":
-            if "username" in form and "password" in form:
-                #Test password
-                username=form["username"].value
-                password=form["password"].value
-                if check_password(username, password)=="passed":
-                   session=create_new_session(username)
-                   display_admin_options(username, session)
-                else:
-                   login_form()
-                   print("<H3><font color=\"red\">Incorrect user/password</font></H3>")
+            #we need to check cookie
+            try:
+                cookie = Cookie.SimpleCookie(os.environ["HTTP_COOKIE"])
+                user = cookie["user"].value
+                session = cookie["session"].value
+                display_admin_options(user, session)
+                return;
+            except (Cookie.CookieError, KeyError):
+                if "username" in form and "password" in form:
+                    #Test password
+                    username=form["username"].value
+                    password=form["password"].value
+                    if check_password(username, password)=="passed":
+                       session=create_new_session(username)
+                       #no cookie, so set one
+                       cookie = Cookie.SimpleCookie()
+                       cookie["session"] = session
+                       cookie["user"] = username
+                       print cookie.output()
+                       display_admin_options(username, session)
+                    else:
+                       login_form()
+                       print("<H3 id=\"message\"><font color=\"red\">Incorrect user/password</font></H3>")
+            
         elif (action == "signUp"):
             createNewUser(form);
         elif (action == "new-album"):
@@ -1057,10 +1154,33 @@ def main():
             user = form["user"].value
             s = form["session.value"];
             showNewsFeed(user, s);
+        elif action == "validateAccount":
+            validateAccount(form);
+        elif action == "reassignCircle":
+            reassignCircle(form);
+        elif action == "actuallyValidateAccount":
+            login_form();
+            print("<H3 id=\"message\"><font color=\"green\">Thank You For Your Verification.</font></H3>")
+        elif action == "logout":
+            c=Cookie.SimpleCookie()
+            c['session']=''
+            c['user']=''
+            c['session']['expires']='Thu, 01 Jan 1970 00:00:00 GMT'
+            c['user']['expires']='Thu, 01 Jan 1970 00:00:00 GMT'
+            print c.output()
+            login_form();
         else:
             login_form()
     else:
-        login_form()
+        #we need to check cookie
+        try:
+            cookie = Cookie.SimpleCookie(os.environ["HTTP_COOKIE"])
+            user = cookie["user"].value
+            session = cookie["session"].value
+            display_admin_options(user, session)
+            return;
+        except (Cookie.CookieError, KeyError):
+            login_form()
 
 ###############################################################
 # Call main function.
